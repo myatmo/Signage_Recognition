@@ -1,6 +1,12 @@
+'''
+Reference code from the author Wovchena
+https://github.com/Wovchena/text-detection-fots.pytorch
+'''
+
 import cv2
 import numpy as np
 from shapely.geometry import Polygon
+import torch
 
 
 def intersection(g, p):
@@ -61,7 +67,10 @@ def nms_locality(polys, thres=0.3):
     return standard_nms(np.array(S), thres)
 
 
-def parse_polys(cls, distances, angle, confidence_threshold=0.5, intersection_threshold=0.3, img=None):
+def parse_polys(img_name, img, output_dir, cls, distances, angle, confidence_threshold=0.5, intersection_threshold=0.3):
+    cls = torch.sigmoid(cls).squeeze().data.cpu().numpy()
+    distances = distances.squeeze().data.cpu().numpy()
+    angle = angle.squeeze().data.cpu().numpy()
     polys = []
     height, width = cls.shape
     IN_OUT_RATIO = 4
@@ -72,7 +81,6 @@ def parse_polys(cls, distances, angle, confidence_threshold=0.5, intersection_th
 
             poly_height = distances[0, y, x] + distances[2, y, x]
             poly_width = distances[1, y, x] + distances[3, y, x]
-
             poly_angle = angle[y, x] - np.pi / 4
             x_rot = x * np.cos(-poly_angle) + y * np.sin(-poly_angle)
             y_rot = -x * np.sin(-poly_angle) + y * np.cos(-poly_angle)
@@ -100,5 +108,47 @@ def parse_polys(cls, distances, angle, confidence_threshold=0.5, intersection_th
             cv2.line(img, (pts[2, 0], pts[2, 1]), (pts[3, 0], pts[3, 1]), color=(0, 255, 0))
             cv2.line(img, (pts[3, 0], pts[3, 1]), (pts[0, 0], pts[0, 1]), color=(0, 255, 0))
         cv2.imshow('polys', img)
+        if output_dir is not None:
+            # save the images to output dir
+            filename = output_dir + '/' + img_name + '.jpg'
+            cv2.imwrite(filename, img)
         cv2.waitKey()
+    return polys
+
+
+def generate_bboxes(img_name, img, score_maps, geo_maps, angle_maps, confidence_threshold=0.5, intersection_threshold=0.3):
+    score_maps = torch.sigmoid(score_maps).squeeze().data.cpu().numpy()
+    geo_maps = geo_maps.squeeze().data.cpu().numpy()
+    angle_maps = angle_maps.squeeze().data.cpu().numpy()
+    polys = []
+    height, width = score_maps.shape[1], score_maps.shape[2]
+    mask = (score_maps > confidence_threshold).astype(score_maps.dtype)
+
+    IN_OUT_RATIO = 4
+    for y in range(height):
+        for x in range(width):
+            if score_maps[y, x] < confidence_threshold:
+                continue
+
+            poly_height = geo_maps[0, y, x] + geo_maps[2, y, x]
+            poly_width = geo_maps[1, y, x] + geo_maps[3, y, x]
+            poly_angle = angle_maps[y, x] - np.pi / 4
+            x_rot = x * np.cos(-poly_angle) + y * np.sin(-poly_angle)
+            y_rot = -x * np.sin(-poly_angle) + y * np.cos(-poly_angle)
+            poly_y_center = y_rot * IN_OUT_RATIO + (poly_height / 2 - geo_maps[0, y, x])
+            poly_x_center = x_rot * IN_OUT_RATIO - (poly_width / 2 - geo_maps[1, y, x])
+            poly = [
+                int(((poly_x_center - poly_width / 2) * np.cos(poly_angle) + (poly_y_center - poly_height / 2) * np.sin(poly_angle))),
+                int((-(poly_x_center - poly_width / 2) * np.sin(poly_angle) + (poly_y_center - poly_height / 2) * np.cos(poly_angle))),
+                int(((poly_x_center + poly_width / 2) * np.cos(poly_angle) + (poly_y_center - poly_height / 2) * np.sin(poly_angle))),
+                int((-(poly_x_center + poly_width / 2) * np.sin(poly_angle) + (poly_y_center - poly_height / 2) * np.cos(poly_angle))),
+                int(((poly_x_center + poly_width / 2) * np.cos(poly_angle) + (poly_y_center + poly_height / 2) * np.sin(poly_angle))),
+                int((-(poly_x_center + poly_width / 2) * np.sin(poly_angle) + (poly_y_center + poly_height / 2) * np.cos(poly_angle))),
+                int(((poly_x_center - poly_width / 2) * np.cos(poly_angle) + (poly_y_center + poly_height / 2) * np.sin(poly_angle))),
+                int((-(poly_x_center - poly_width / 2) * np.sin(poly_angle) + (poly_y_center + poly_height / 2) * np.cos(poly_angle))),
+                score_maps[y, x]
+            ]
+            polys.append(poly)
+
+    polys = nms_locality(np.array(polys), intersection_threshold)
     return polys

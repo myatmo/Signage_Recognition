@@ -42,6 +42,7 @@ class ROIRotate(nn.Module):
         # read this blog post to learn more about this process:
         # https://kevinzakka.github.io/2017/01/10/stn-part1/
         grid = F.affine_grid(transform_mats, obbs.shape, align_corners=True)
+        grid = grid.to('cuda')
         aabbs = F.grid_sample(obbs, grid, align_corners=True)
         # as mentioned in the FOTS paper, the width of text proposals may vary
         # in practice, so we pad the feature maps to the longest width and
@@ -90,7 +91,6 @@ class ROIRotate(nn.Module):
             bl_dst = (0, 8)
             src = np.float32([tl_src, tr_src, bl_src])
             dst = np.float32([tl_dst, tr_dst, bl_dst])
-            # TODO: write my own function to avoid the conversion to numpy arrays?
             M = cv2.getAffineTransform(src, dst)
             M = np.vstack((M, [0, 0, 1]))
             # need to normalize the coordinates to [-1, 1], as required by F.affine_grid()

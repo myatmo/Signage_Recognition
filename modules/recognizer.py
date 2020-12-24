@@ -35,6 +35,7 @@ class CNN(nn.Module):
         Returns:
             x (Tensor): (N, 256, 1, W).
         """
+        x = x.to('cuda')
         x = self.vgg_block1(x)
         x = self.vgg_block2(x)
         x = self.vgg_block3(x)
