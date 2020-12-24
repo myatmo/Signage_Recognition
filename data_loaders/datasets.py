@@ -6,7 +6,8 @@ import numpy as np
 from scipy.io import loadmat
 from torch.utils.data import Dataset
 from torchvision import transforms
-
+from torch.utils.data import DataLoader
+from utils.data import collate_fn
 from utils.data import aug, sort_points_clockwise, generate_rbox, prepare_image
 
 class TotalText(Dataset):
@@ -34,6 +35,8 @@ class TotalText(Dataset):
         image = cv2.imread(img_path)
         img, rh, rw = prepare_image(image, self.height, self.width)
         bboxes, texts = self._load_annotations(img_filename)
+        scale = np.array([[rw, rh]])
+        bboxes = (bboxes * scale).astype(bboxes.dtype)
         score_map, geo_map, angle_map, training_mask = generate_rbox(img, bboxes, texts)
         img = self.transform(img)
         return img_filename, img, bboxes, texts, score_map, geo_map, angle_map, training_mask
@@ -146,3 +149,28 @@ class SynthText(Dataset):
     def _get_random_item(self):
         rand_idx = np.random.randint(0, len(self)-1)
         return self[rand_idx]
+
+
+def test_datasets():
+    print("Loading datasets...")
+    root = '../../datasets/smalltotal/Trainsets'
+    data_train = TotalText(root)
+    train_loader = DataLoader(data_train, batch_size=3, shuffle=True, num_workers=2, collate_fn=collate_fn)
+    print(len(train_loader))
+    filename = data_train.img_filenames[2]
+    img_path = root + '/data/' + filename + '.jpg'
+    image = cv2.imread(img_path)
+    img, rh, rw = prepare_image(image, 640, 640)
+    scale = np.array([[rw, rh]])
+    bboxes, texts = data_train._load_annotations(filename)
+    bboxes = (bboxes * scale).astype(bboxes.dtype)
+    '''
+    for i in range(bboxes.shape[0]):
+        pts = bboxes[i, :, :]
+        pts = pts.reshape((-1, 1, 2))
+        cv2.polylines(img, [pts], True, (0, 255, 255))
+    cv2.imshow("img", img)
+    cv2.waitKey()
+    '''
+    score_map, geo_map, angle_map, training_mask = generate_rbox(img, bboxes, texts)
+    print(img.shape, score_map.shape, geo_map.shape, angle_map.shape, training_mask.shape)
