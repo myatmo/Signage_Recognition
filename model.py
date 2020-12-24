@@ -17,13 +17,14 @@ class SRModel(nn.Module):
             is_training (bool): whether the model is being trained or not
         """
         super().__init__()
-        #self.SharedConv = SharedConv()
-        #self.Detector = Detector()
+        self.SharedConv = SharedConv()
+        self.Detector = Detector()
         self.ROIRotate = ROIRotate()
         self.Recognizer = Recognizer(num_of_classes=modules.alphabet.NUM_OF_CLASSES)
         self.is_training = is_training
 
-    def forward(self, imgs, bboxes, bbox_to_img_idx, pretrained):
+    #def forward(self, bboxes, bbox_to_img_idx, pretrained):
+    def forward(self, imgs, bboxes=None, bbox_to_img_idx=None):
         """
         Args:
             imgs: Input images.
@@ -33,19 +34,14 @@ class SRModel(nn.Module):
                 ignored if self.is_training is False.
         """
         #score_maps, geo_maps, angle_maps = FOTSModel()
-        #shared_features = SharedConv(imgs)
-        score_maps, geo_maps, angle_maps = pretrained
-        shared_features = pretrained.remove_artifacts()
-        # Quote from the FOTS paper:
-        # "Different from object classification, text recognition is very
-        # sensitive to detection noise. A small error in predicted text region
-        # could cut off several characters, which is harmful to network
-        # training, so we use ground truth text regions instead of predicted
-        # text regions during training. When testing, thresholding and NMS are
-        # applied to filter predicted text regions."
-        if not self.is_training:
+        shared_features = self.SharedConv(imgs)
+        score_maps, geo_maps, angle_maps = self.Detector(shared_features)
+        #score_maps, geo_maps, angle_maps = pretrained
+        # TODO: transform into tensors
+        #shared_features = pretrained.remove_artifacts()
+        #if not self.is_training:
             # get the predicted bounding boxes
-            bboxes, bbox_to_img_idx = restore_bbox(score_maps, geo_maps, angle_maps)
+            #bboxes, bbox_to_img_idx = restore_bbox(score_maps, geo_maps, angle_maps)
         rois, seq_lens = self.ROIRotate(shared_features, bboxes, bbox_to_img_idx)
         log_probs = self.Recognizer(rois, seq_lens)
                 
