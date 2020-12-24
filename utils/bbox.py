@@ -18,21 +18,27 @@ def restore_bbox(score_maps, geo_maps, angle_maps, score_map_threshold=0.5, nms_
     Returns:
     """
     # have to convert to numpy array otherwise some of the code will break
-    score_maps = score_maps.detach().cpu().numpy()
-    geo_maps = geo_maps.detach().cpu().numpy()
-    geo_maps = geo_maps.transpose((0, 2, 3, 1)) # now geo_map is batch_size x H x W x 4
-    angle_maps = angle_maps.detach().cpu().numpy()
+    # score_maps = score_maps.detach().cpu().numpy()
+    # geo_maps = geo_maps.detach().cpu().numpy()
+    # geo_maps = geo_maps.transpose((0, 2, 3, 1)) # now geo_map is batch_size x H x W x 4
+    # angle_maps = angle_maps.detach().cpu().numpy()
+    score_maps = torch.sigmoid(score_maps).squeeze().data.cpu().numpy()
+    geo_maps = geo_maps.squeeze().data.cpu().numpy()
+    angle_maps = angle_maps.squeeze().data.cpu().numpy()
+    print("inside rb : ", score_maps.shape, geo_maps.shape, angle_maps.shape)
 
     bboxes = []
     bbox_to_img_idx = []
     num_of_images = score_maps.shape[0]
     for i in range(num_of_images):
         # select the score map, geometry map and angle map for image i
-        score_map = score_maps[i,0,:,:]
-        geo_map = geo_maps[i,:,:,:]
-        angle_map = angle_maps[i,0,:,:]
+        score_map = score_maps[i,:,:]
+        geo_map = geo_maps[i,:,:]
+        angle_map = angle_maps[i,:,:]
+        print("shape : ", score_map.shape, geo_map.shape, angle_map.shape)
         # recover the bounding boxes for image i
         bboxes_i = restore_bbox_helper(score_map, geo_map, angle_map, score_map_threshold, nms_threshold)
+        print("inside: ", bboxes_i.shape)
         if len(bboxes_i) == 0: # if no bounding box in image i
             continue
         bboxes.append(bboxes_i)

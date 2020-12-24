@@ -432,13 +432,13 @@ Read the input image and resize it according to the input height and width
 input:  image, height and width (int)
 return: new resized image, rh (ratio changes in height) and rw (ratio changes in width)
 '''
-def prepare_image(image, height, width):
+def prepare_image(image, newH, newW):
     # grab the image dimensions
     (origH, origW) = image.shape[:2]
     # set new height and width and calculate the ratio in changes
-    (newH, newW) = (height, width) # you can change the size to any multiple of 32
-    rh = origH / float(newH)
-    rw = origW / float(newW)
+    # so that the ratio changes is used to apply to fix the bounding boxes scale
+    rh = newH / float(origH)
+    rw = newW / float(origW)
     # resize the image
     image = cv2.resize(image, (newW, newH), interpolation=cv2.INTER_CUBIC)
     return image, rh, rw
